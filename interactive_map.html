@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>日本の地震マップ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.Default.css"/>
+  <style>
+    :root { color-scheme: light dark; }
+    html, body { height: 100%; margin: 0; }
+    body { font-family: 'Noto Sans JP', system-ui, -apple-system, Segoe UI, Roboto, 'Yu Gothic', sans-serif; }
+  .layout { --panel-w: 360px; display: grid; grid-template-columns: var(--panel-w) 1fr; grid-template-rows: auto 1fr; grid-template-areas: 'header header' 'panel map'; height: 100%; transition: grid-template-columns .35s ease; }
+    header { grid-area: header; padding: 10px 14px; border-bottom: 1px solid #ccc; }
+    .panel { grid-area: panel; padding: 12px; border-right: 1px solid #ccc; overflow: auto; background: rgba(0,0,0,0.02); }
+    .map { grid-area: map; }
+    #map { width: 100%; height: 100%; }
+    .box { background: #fff; border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    .box h3 { margin: 0 0 8px; font-size: 16px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+    .small { font-size: 12px; color: #666; }
+    .list { max-height: 42vh; overflow: auto; padding: 0; margin: 0; list-style: none; }
+    .item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
+    .item:hover { background: #f7f7f7; }
+    .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 12px; border: 1px solid #bbb; margin-left: 6px; }
+    .tag.shallow { background: #e7f0ff; border-color: #6aa4ff; }
+    .tag.intermediate { background: #fff1dc; border-color: #ffb957; }
+    .tag.deep { background: #efe6ff; border-color: #a88bff; }
+    .controls label { font-size: 13px; display: block; }
+    .muted { opacity: .55; }
+    /* custom marker ui */
+    .btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #999; background: #fff; cursor: pointer; font-size: 12px; }
+    .btn.primary { background: #2b7bff; border-color: #2b7bff; color: #fff; }
+    .btn.danger { background: #ff4d4f; border-color: #ff4d4f; color: #fff; }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    input[type="text"], textarea, select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #bbb; box-sizing: border-box; font-family: inherit; font-size: 13px; }
+    textarea { resize: vertical; min-height: 60px; }
+    .cm-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+    #mkList .item { display: flex; flex-direction: column; gap: 2px; }
+    #mkList .item.active { background: #f0f6ff; }
+  /* collapse layout (animated via CSS variable) */
+  .layout.collapsed { --panel-w: 56px; }
+  .panel { transition: padding .35s ease; }
+  .layout.collapsed .panel { padding: 8px; }
+  .layout.collapsed .panel .box:not(.panel-tools) { display: none; }
+    /* icon button */
+    .icon-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid #999; background: #fff; cursor: pointer; }
+    .icon { width: 18px; height: 18px; display: block; }
+    /* panel tools (no box chrome) */
+    .panel-tools { display: flex; justify-content: flex-end; padding: 0; margin: 0 0 8px 0; background: transparent; border: 0; box-shadow: none; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <div class="row" style="justify-content:space-between; align-items:center; gap:8px;">
+        <h2 style="margin:0; font-size:18px;">日本の地震マップ（検索・フィルタ・選択）</h2>
+      </div>
+      <div class="small">過去3年間</div>
+    </header>
+    <aside class="panel">
+      <div class="panel-tools">
+        <button id="togglePanelInside" class="icon-btn" title="パネルの表示/非表示" aria-label="パネル縮小">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="box controls">
+        <h3>検索</h3>
+        <input id="q" type="search" placeholder="場所キーワード (例: Japan, Hokkaido, Ibaraki)" style="width:100%; padding:8px; border-radius:8px; border:1px solid #bbb;">
+      </div>
+      <div class="box">
+        <h3>フィルタ</h3>
+        <div class="row">
+          <label>マグニチュード: <span id="magVal">2.5+</span></label>
+        </div>
+        <input id="magMin" type="range" min="2.5" max="7.5" step="0.1" value="2.5" style="width:100%;">
+        <div class="row">
+          <label class="row" style="gap:6px;">
+            <input type="checkbox" id="fShallow" checked> 浅発
+          </label>
+          <label class="row" style="gap:6px;">
+            <input type="checkbox" id="fInter" checked> 中深発
+          </label>
+          <label class="row" style="gap:6px;">
+            <input type="checkbox" id="fDeep" checked> 深発
+          </label>
+        </div>
+      </div>
+      <div class="box" id="customBox">
+        <h3>カスタムマーカー</h3>
+        <div class="row" style="margin-bottom:8px;">
+          <button id="mkCreate" class="btn" title="クリック後、地図上をクリックでマーカー作成">作成モード</button>
+          <button id="mkSave" class="btn primary" disabled>保存</button>
+          <button id="mkDelete" class="btn danger" disabled>削除</button>
+        </div>
+        <label style="display:block;margin-bottom:6px;">
+          タイトル
+          <input id="mkTitle" type="text" placeholder="例: 観測ポイントA" disabled>
+        </label>
+        <label style="display:block;margin-bottom:6px;">
+          メモ
+          <textarea id="mkNote" placeholder="任意の説明" disabled></textarea>
+        </label>
+        <label style="display:block;margin-bottom:8px;">
+          色
+          <select id="mkColor" disabled>
+            <option value="#2b7bff">青</option>
+            <option value="#ff4d4f">赤</option>
+            <option value="#00b894">緑</option>
+            <option value="#f39c12">オレンジ</option>
+            <option value="#7a5cff">紫</option>
+          </select>
+        </label>
+        <div class="small muted" id="mkHint">「作成モード」を押し → 地図クリックで新規。マーカーはドラッグで位置変更できます。</div>
+        <div class="small muted" style="margin-top:8px;">マーカー一覧</div>
+        <ul id="mkList" class="list" style="max-height:180px;"></ul>
+      </div>
+      <div class="box">
+        <h3>ヒット一覧 <span id="hitCount" class="small muted"></span></h3>
+        <ul id="list" class="list"></ul>
+      </div>
+      <div class="small muted">操作: クリックでポップアップ、ダブルクリックでズーム / リスト選択で該当地点へ移動</div>
+    </aside>
+    <section class="map"><div id="map"></div></section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/leaflet.markercluster.js"></script>
+  <script>
+    const state = {
+      data: [],
+      markers: [],
+      cluster: null,
+      map: null,
+      query: '',
+      magMin: 2.5,
+      allow: { shallow: true, intermediate: true, deep: true },
+      custom: {
+        creation: false,
+        selectedId: null,
+        items: [], // {id, lat, lon, title, note, color}
+        layer: null
+      }
+    };
+
+    const colors = { shallow: '#2b7bff', intermediate: '#ff9f1a', deep: '#7a5cff' };
+
+    function depthTag(cat){
+      const jp = cat==='shallow'?'浅発':cat==='intermediate'?'中深発':'深発';
+      return `<span class="tag ${cat}">${jp}</span>`;
+    }
+
+    function createPopup(e){
+      return `<b>${e.place || '(no place)'}</b><br>`+
+             `M ${e.mag.toFixed(1)} / 深さ ${Math.round(e.depth)} km ${depthTag(e.depthCategory)}<br>`+
+             `${e.time}`;
+    }
+
+    function applyFilters(row){
+      if (row.mag < state.magMin) return false;
+      if (!state.allow[row.depthCategory]) return false;
+      if (state.query){
+        const q = state.query.toLowerCase();
+        const place = (row.place||'').toLowerCase();
+        if (!place.includes(q)) return false;
+      }
+      return true;
+    }
+
+    function updateMarkers(){
+      // clear cluster
+      if (state.cluster){ state.cluster.clearLayers(); }
+      state.markers = [];
+
+      const filtered = state.data.filter(applyFilters);
+      for (const e of filtered){
+        const m = L.circleMarker([e.lat, e.lon], {
+          radius: 3 + e.mag,
+          color: colors[e.depthCategory] || '#666',
+          weight: 2,
+          fill: true,
+          fillOpacity: 0.7,
+          fillColor: colors[e.depthCategory] || '#666'
+        }).bindPopup(createPopup(e));
+        m.on('dblclick', () => state.map.setView([e.lat, e.lon], Math.max(7, state.map.getZoom()+1)));
+        state.cluster.addLayer(m);
+        state.markers.push({ id: e.id, marker: m, data: e });
+      }
+      document.getElementById('hitCount').textContent = `(${filtered.length} 件)`;
+      renderList(filtered.slice(0, 500)); // パネル描画は最大500件に抑制
+    }
+
+    function renderList(rows){
+      const ul = document.getElementById('list');
+      ul.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      for (const e of rows){
+        const li = document.createElement('li');
+        li.className = 'item';
+        li.innerHTML = `${e.time} / M ${e.mag.toFixed(1)} ${depthTag(e.depthCategory)}<br><span class="small">${e.place}</span>`;
+        li.onclick = () => {
+          const rec = state.markers.find(x => x.data.id === e.id);
+          if (rec){
+            rec.marker.openPopup();
+            state.map.setView([e.lat, e.lon], Math.max(6, state.map.getZoom()));
+          }
+        };
+        frag.appendChild(li);
+      }
+      ul.appendChild(frag);
+    }
+
+    function initMap(){
+      state.map = L.map('map', { center: [37, 137], zoom: 5 });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        maxZoom: 19, subdomains: 'abcd'
+      }).addTo(state.map);
+      state.cluster = L.markerClusterGroup({ disableClusteringAtZoom: 9 });
+      state.map.addLayer(state.cluster);
+      state.custom.layer = L.layerGroup().addTo(state.map);
+    }
+
+    async function loadData(){
+      const res = await fetch('earthquakes_events.json');
+      state.data = await res.json();
+      updateMarkers();
+    }
+
+    function wireUI(){
+      const q = document.getElementById('q');
+      const mag = document.getElementById('magMin');
+      const magVal = document.getElementById('magVal');
+      const fSh = document.getElementById('fShallow');
+      const fIm = document.getElementById('fInter');
+      const fDp = document.getElementById('fDeep');
+
+      q.addEventListener('input', () => { state.query = q.value.trim(); updateMarkers(); });
+      mag.addEventListener('input', () => { state.magMin = parseFloat(mag.value); magVal.textContent = `${state.magMin.toFixed(1)}+`; updateMarkers(); });
+      fSh.addEventListener('change', () => { state.allow.shallow = fSh.checked; updateMarkers(); });
+      fIm.addEventListener('change', () => { state.allow.intermediate = fIm.checked; updateMarkers(); });
+      fDp.addEventListener('change', () => { state.allow.deep = fDp.checked; updateMarkers(); });
+
+      // ---- Custom marker UI ----
+      const btnCreate = document.getElementById('mkCreate');
+      const btnSave = document.getElementById('mkSave');
+      const btnDelete = document.getElementById('mkDelete');
+      const inTitle = document.getElementById('mkTitle');
+      const inNote = document.getElementById('mkNote');
+      const inColor = document.getElementById('mkColor');
+      const listBox = document.getElementById('mkList');
+
+      btnCreate.addEventListener('click', () => {
+        state.custom.creation = !state.custom.creation;
+        btnCreate.textContent = state.custom.creation ? '作成中…(終了)' : '作成モード';
+        btnCreate.classList.toggle('primary', state.custom.creation);
+      });
+
+      btnSave.addEventListener('click', () => {
+        if (state.custom.selectedId == null) return;
+        const it = state.custom.items.find(x => x.id === state.custom.selectedId);
+        if (!it) return;
+        it.title = inTitle.value.trim();
+        it.note = inNote.value.trim();
+        it.color = inColor.value;
+        saveCustom();
+        redrawCustom();
+      });
+
+      btnDelete.addEventListener('click', () => {
+        if (state.custom.selectedId == null) return;
+        const idx = state.custom.items.findIndex(x => x.id === state.custom.selectedId);
+        if (idx >= 0) state.custom.items.splice(idx,1);
+        state.custom.selectedId = null;
+        bindForm(null);
+        saveCustom();
+        redrawCustom();
+      });
+
+      function bindForm(item){
+        const disabled = !item;
+        inTitle.disabled = inNote.disabled = inColor.disabled = btnSave.disabled = btnDelete.disabled = disabled;
+        if (!item){
+          inTitle.value=''; inNote.value=''; inColor.value='#2b7bff';
+        } else {
+          inTitle.value = item.title || '';
+            inNote.value = item.note || '';
+            inColor.value = item.color || '#2b7bff';
+        }
+      }
+
+      function customIcon(color){
+        return L.divIcon({ html: `<div class=\"cm-dot\" style=\"background:${color}\"></div>`, className:'cm', iconSize:[16,16], iconAnchor:[8,8] });
+      }
+
+      function redrawCustom(){
+        state.custom.layer.clearLayers();
+        listBox.innerHTML='';
+        const frag = document.createDocumentFragment();
+        for (const it of state.custom.items){
+          const mk = L.marker([it.lat, it.lon], { draggable:true, icon: customIcon(it.color||'#2b7bff') })
+            .addTo(state.custom.layer)
+            .bindPopup(`<b>${(it.title||'カスタム')}</b><br>${(it.note||'')}<br><span class=small>${it.lat.toFixed(4)}, ${it.lon.toFixed(4)}</span>`);
+          mk.on('click', () => { state.custom.selectedId = it.id; bindForm(it); highlightList(); });
+          mk.on('dragend', ev => { const p = ev.target.getLatLng(); it.lat = p.lat; it.lon = p.lng; saveCustom(); redrawCustom(); });
+          const li = document.createElement('li');
+          li.className='item';
+          li.dataset.id = it.id;
+          li.innerHTML = `<span style=\"display:inline-block;width:10px;height:10px;border-radius:50%;background:${it.color||'#2b7bff'};margin-right:6px;\"></span>${(it.title||'カスタムポイント')}<br><span class=small>${it.lat.toFixed(3)}, ${it.lon.toFixed(3)}</span>`;
+          li.onclick = () => { state.custom.selectedId = it.id; bindForm(it); highlightList(); state.map.setView([it.lat,it.lon], Math.max(6,state.map.getZoom())); };
+          frag.appendChild(li);
+        }
+        listBox.appendChild(frag);
+        highlightList();
+      }
+
+      function highlightList(){
+        [...listBox.children].forEach(li => li.classList.toggle('active', String(li.dataset.id)===String(state.custom.selectedId)) );
+      }
+
+      function saveCustom(){
+        try { localStorage.setItem('customMarkers', JSON.stringify(state.custom.items)); } catch(e) {}
+      }
+      function loadCustom(){
+        try { const raw = localStorage.getItem('customMarkers'); if (raw) state.custom.items = JSON.parse(raw)||[]; } catch(e) { state.custom.items=[]; }
+      }
+
+      // map click create
+      state.map.on('click', e => {
+        if (!state.custom.creation) return;
+        const id = Date.now();
+        const item = { id, lat:e.latlng.lat, lon:e.latlng.lng, title:'新しいポイント', note:'', color:'#2b7bff' };
+        state.custom.items.push(item);
+        state.custom.creation = false;
+        btnCreate.textContent='作成モード';
+        btnCreate.classList.remove('primary');
+        state.custom.selectedId = id;
+        saveCustom();
+        bindForm(item);
+        redrawCustom();
+      });
+
+      loadCustom();
+      redrawCustom();
+      bindForm(null);
+      // panel toggle (inside panel with icon)
+      const layout = document.querySelector('.layout');
+      const toggleInside = document.getElementById('togglePanelInside');
+      const leftIcon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"></path></svg>';
+      const rightIcon = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z"></path></svg>';
+      function setToggleIcon(){
+        const collapsed = layout.classList.contains('collapsed');
+        toggleInside.innerHTML = collapsed ? rightIcon : leftIcon;
+        toggleInside.title = collapsed ? 'パネル展開' : 'パネル縮小';
+        toggleInside.setAttribute('aria-label', collapsed ? 'パネル展開' : 'パネル縮小');
+      }
+      setToggleIcon();
+      toggleInside.addEventListener('click', () => {
+        layout.classList.toggle('collapsed');
+        setToggleIcon();
+        setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 200);
+      });
+    }
+
+    // boot
+    initMap();
+    wireUI();
+    loadData();
+  </script>
+</body>
+</html>
