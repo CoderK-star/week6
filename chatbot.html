@@ -41,6 +41,8 @@
   .footer-note { font-size:11px; color:#777; margin-top:6px; }
   .loading { font-size:12px; color:#666; }
   .voice-toggle { display:flex; align-items:center; gap:6px; font-size:12px; }
+  .tts-status { font-size:11px; color:#555; margin-top:4px; padding:4px 8px; background:#fff; border:1px solid #e0e0e0; border-radius:6px; }
+  .tts-status.error { color:#c62828; border-color:#f4b4b4; background:#ffecec; }
 
   /* Minimal mode: only chat (messages + input) */
   body.minimal header { display:none; }
@@ -83,7 +85,8 @@
     </div>
   </div>
   <div class="chat-wrap">
-    <div id="messages" class="messages"></div>
+  <div id="messages" class="messages"></div>
+  <div id="ttsStatus" class="tts-status" style="display:none"></div>
     <form id="chatForm">
       <input id="userInput" type="text" placeholder="質問を入力またはマイクで話す..." autocomplete="off" />
       <button type="submit">送信</button>
@@ -171,6 +174,8 @@ try {
   if (vvUrl) ttsConfig.voicevox.endpoint = vvUrl;
   const vvSp = usp.get('vv_speaker');
   if (vvSp) ttsConfig.voicevox.speaker = parseInt(vvSp, 10) || ttsConfig.voicevox.speaker;
+  const vvDebug = usp.get('vv_debug');
+  if (vvDebug === '1' || vvDebug === 'true') ttsConfig.debug = true;
 } catch(e) {}
 
 function parseQuery(q){
@@ -286,10 +291,12 @@ async function speak(text, force=false){
   if (ttsConfig.mode === 'voicevox') {
     try {
       await voicevoxSpeak(clean);
+      updateTTSStatus('VOICEVOX再生成功', false);
       return;
     } catch(err){
       // fallback to webspeech
-      console.warn('VOICEVOX 再生に失敗したため、ブラウザ音声にフォールバックします:', err);
+      updateTTSStatus('VOICEVOX再生失敗: '+ err.message +' → ブラウザ音声へフォールバック', true);
+      if (ttsConfig.debug) console.warn('VOICEVOX 再生に失敗したため、ブラウザ音声にフォールバックします:', err);
     }
   }
   // Browser speech synthesis fallback
@@ -327,6 +334,14 @@ async function voicevoxSpeak(text){
   await audio.play();
   // cleanup later
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+function updateTTSStatus(msg, isError){
+  const box = document.getElementById('ttsStatus');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = msg;
+  box.classList.toggle('error', !!isError);
 }
 
 // Re-load voices on some browsers

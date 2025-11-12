@@ -33,6 +33,22 @@ jupyter nbconvert --to html earthquake.ipynb
 ```
 生成された `earthquake.html` を追加で Pages に含めれば静的レポート閲覧が可能です。
 
+## ローカルで VOICEVOX プロキシを使って起動する
+ブラウザから VOICEVOX を直接呼ぶと CORS 制約で失敗する場合があるため、同一オリジンの簡易プロキシを用意しています。
+
+1. VOICEVOX エンジンを起動 (例: http://localhost:50021)
+2. プロキシを起動
+	```powershell
+	cd "c:\Users\kyuha\OneDrive - reitaku.jp\デスクトップ\Programming class\week6\proxy"
+	npm install
+	npm start
+	```
+	- プロキシは http://localhost:5173 で起動し、`/voicevox/*` を VOICEVOX へ中継、CORS ヘッダを付与します。
+	- プロジェクト直下の静的ファイルも配信されます。
+3. ブラウザで http://localhost:5173/interactive_map.html を開く
+	- 右下ボタンからチャットを開くと、`/voicevox` 経由で VOICEVOX が利用されます。
+	- うまくいかない場合は `chatbot.html` の URL に `&vv_debug=1` を付けてデバッグメッセージを確認してください。
+
 ## ライセンス / 注意
 - USGS データはオープンですが利用時は出典を明記してください。
 - 分析結果は教育目的のサンプルであり、リアルタイム監視や防災判断には公式情報を参照してください。
