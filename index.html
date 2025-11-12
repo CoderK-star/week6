@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>日本の地震マップ（過去3年）</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }
+    header, footer { padding: 12px 16px; }
+    header { border-bottom: 1px solid #ccc; }
+    footer { border-top: 1px solid #ccc; font-size: 14px; color: #666; }
+    main { padding: 12px 0 0; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 12px; }
+    .map-wrap { position: relative; width: 100%; aspect-ratio: 16 / 10; }
+    .map-iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 1px solid #ccc; border-radius: 6px; background: #f7f7f7; }
+    .links { margin: 12px 0 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .links a { text-decoration: none; padding: 8px 12px; border: 1px solid #999; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <header class="container">
+    <h1 style="margin: 0; font-size: 20px;">日本の地震マップ（過去3年, M≥2.5）</h1>
+    <p style="margin: 6px 0 0; font-size: 14px;">Foliumで生成した地図をそのまま埋め込んでいます。フルスクリーンボタンで拡大表示できます。</p>
+  </header>
+  <main class="container">
+    <div class="links">
+      <a href="earthquakes_map.html" target="_blank" rel="noopener">地図を新しいタブで開く</a>
+      <a href="year_counts.csv" target="_blank" rel="noopener">年別件数 CSV</a>
+      <a href="month_counts.csv" target="_blank" rel="noopener">月別件数 CSV</a>
+      <a href="monthly_trend.csv" target="_blank" rel="noopener">月次トレンド CSV</a>
+      <a href="largest10.csv" target="_blank" rel="noopener">最大マグニチュード上位10件 CSV</a>
+    </div>
+    <div class="map-wrap">
+      <iframe class="map-iframe" src="earthquakes_map.html" title="日本の地震マップ"></iframe>
+    </div>
+    <noscript>
+      <p>JavaScriptを有効にすると地図が表示されます。もしくは上のリンクから <em>earthquakes_map.html</em> を直接開いてください。</p>
+    </noscript>
+  </main>
+  <footer class="container">
+    <p>データ出典: USGS FDSN Event API. 背景地図: CARTO / OpenStreetMap. 作成: week6</p>
+  </footer>
+</body>
+</html>
