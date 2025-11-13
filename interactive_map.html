@@ -53,28 +53,15 @@
     .icon { width: 18px; height: 18px; display: block; }
     /* panel tools (no box chrome) */
     .panel-tools { display: flex; justify-content: flex-end; padding: 0; margin: 0 0 8px 0; background: transparent; border: 0; box-shadow: none; }
-    /* chatbot button and modal */
-  .chat-fab { position: fixed; right: 16px; bottom: 16px; width: 56px; height: 56px; border-radius: 50%; border: 1px solid #999; background: #fff; box-shadow: 0 6px 16px rgba(0,0,0,.18); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 1000; overflow: hidden; }
-    .chat-fab:hover { transform: translateY(-1px); }
-  .chat-fab .icon { width: 28px; height: 28px; display:block; }
-  .chat-fab img { width: 120%; height: 120%; border-radius: 50%; object-fit: cover; object-position: 50% 30%; display:block; }
-    .chat-modal { position: fixed; inset: 0; display: none; z-index: 1200; }
-    .chat-modal.open { display: block; }
-    .chat-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.35); }
-    .chat-panel { position: absolute; right: 16px; bottom: 88px; width: min(560px, 92vw); height: min(70vh, 640px); background: #fff; border: 1px solid #ccc; border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,.35); overflow: hidden; display: flex; }
-    .chat-close { position: absolute; top: 6px; right: 8px; z-index: 1; width: 28px; height: 28px; border-radius: 999px; border: 1px solid #999; background: #fff; cursor: pointer; }
-    .chat-panel iframe { width: 100%; height: 100%; border: 0; }
-    /* focus pulse marker (fallback without CSS animation) */
-    .pulse-marker { box-shadow: 0 0 0 4px rgba(0,200,83,.25); }
   </style>
 </head>
 <body>
   <div class="layout">
     <header>
       <div class="row" style="justify-content:space-between; align-items:center; gap:8px;">
-        <h2 style="margin:0; font-size:18px;">日本の地震マップ（検索・フィルタ・選択）</h2>
+        <h2 style="margin:0; font-size:18px;">地震マップ（世界/日本）</h2>
       </div>
-      <div class="small">過去3年間</div>
+      <div class="small" id="sourceInfo">データ: USGS（過去30日・世界）</div>
     </header>
     <aside class="panel">
       <div class="panel-tools">
@@ -87,6 +74,15 @@
       <div class="box controls">
   <h3>検索</h3>
   <input id="q" type="search" placeholder="場所キーワード (例: 北海道, 茨城, 東北)" style="width:100%; padding:8px; border-radius:8px; border:1px solid #bbb;">
+        <div class="row" style="margin-top:8px;">
+          <label style="flex:0 0 92px;">データソース</label>
+          <select id="dataSource">
+            <option value="usgs_month" selected>USGS: 過去30日 (世界)</option>
+            <option value="usgs_week">USGS: 過去7日 (世界)</option>
+            <option value="usgs_day">USGS: 過去24時間 (世界)</option>
+            <option value="local">ローカル: 日本 (過去3年)</option>
+          </select>
+        </div>
       </div>
       <div class="box">
         <h3>フィルタ</h3>
@@ -103,6 +99,20 @@
           </label>
           <label class="row" style="gap:6px;">
             <input type="checkbox" id="fDeep" checked> 深発
+          </label>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <label class="row" style="gap:6px;">
+            <input type="checkbox" id="fHeat"> ヒートマップ表示
+          </label>
+        </div>
+        <!-- 追加: 日付レンジ + 操作用ボタン -->
+        <div class="row" style="gap:10px; margin-top:8px;">
+          <label>開始日
+            <input id="dateFrom" type="date" disabled>
+          </label>
+          <label>終了日
+            <input id="dateTo" type="date" disabled>
           </label>
         </div>
       </div>
@@ -144,22 +154,12 @@
     <section class="map"><div id="map"></div></section>
   </div>
 
-  <!-- Floating Chatbot Button -->
-  <button id="chatFab" class="chat-fab" title="チャットボットを開く" aria-label="チャットボットを開く">
-    <img src="zunda.png" alt="ずんだもん" />
-  </button>
-
-  <!-- Chatbot Modal (iframe) -->
-  <div id="chatModal" class="chat-modal" aria-hidden="true">
-    <div id="chatBackdrop" class="chat-backdrop" aria-hidden="true"></div>
-    <div class="chat-panel" role="dialog" aria-modal="true" aria-label="ずんだもん地震チャットボット">
-      <button id="chatClose" class="chat-close" aria-label="閉じる">×</button>
-      <iframe id="chatFrame" src="chatbot.html?minimal=1&vv=1&vv_url=/voicevox" title="ずんだもん地震チャットボット"></iframe>
-    </div>
-  </div>
+  
 
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/leaflet.markercluster.js"></script>
+  <!-- Leaflet.heat plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script>
     const state = {
       data: [],
@@ -169,12 +169,19 @@
       query: '',
       magMin: 2.5,
       allow: { shallow: true, intermediate: true, deep: true },
+      dataSource: 'usgs_month',
+      // 追加: 時間レンジと最後のフィルタ結果
+      timeFrom: null,   // ms
+      timeTo: null,     // ms
+      lastFiltered: [],
       custom: {
         creation: false,
         selectedId: null,
         items: [], // {id, lat, lon, title, note, color}
         layer: null
-      }
+      },
+      // 追加: ヒートマップ用状態
+      heat: { layer: null, enabled: false }
     };
 
     const colors = { shallow: '#2b7bff', intermediate: '#ff9f1a', deep: '#7a5cff' };
@@ -200,6 +207,10 @@
     function applyFilters(row){
       if (row.mag < state.magMin) return false;
       if (!state.allow[row.depthCategory]) return false;
+      // 追加: 日付フィルタ
+      const t = new Date(row.time).getTime();
+      if (state.timeFrom != null && t < state.timeFrom) return false;
+      if (state.timeTo != null && t > state.timeTo) return false;
       if (state.query){
         const q = state.query.toLowerCase();
         const place = (row.place||'').toLowerCase();
@@ -214,6 +225,8 @@
       state.markers = [];
 
       const filtered = state.data.filter(applyFilters);
+      state.lastFiltered = filtered; // 追加: 保持
+
       for (const e of filtered){
         const m = L.circleMarker([e.lat, e.lon], {
           radius: 3 + e.mag,
@@ -227,7 +240,22 @@
         state.cluster.addLayer(m);
         state.markers.push({ id: e.id, marker: m, data: e });
       }
-  document.getElementById('hitCount').textContent = `(${filtered.length} 件)`;
+
+      // 追加: ヒートマップ更新（Mに応じて重み付け）
+      if (state.heat && state.heat.layer){
+        const points = filtered.map(e => {
+          const mag = Number.isFinite(e.mag) ? e.mag : 2.5;
+          const w = Math.max(0.1, Math.min(1, (mag - 2.5) / 5));
+          return [e.lat, e.lon, w];
+        });
+        state.heat.layer.setLatLngs(points);
+        if (state.heat.enabled) {
+          if (!state.map.hasLayer(state.heat.layer)) state.map.addLayer(state.heat.layer);
+        } else {
+          if (state.map.hasLayer(state.heat.layer)) state.map.removeLayer(state.heat.layer);
+        }
+      }
+      document.getElementById('hitCount').textContent = `(${filtered.length} 件)`;
       renderList(filtered.slice(0, 500)); // パネル描画は最大500件に抑制
     }
 
@@ -252,7 +280,8 @@
     }
 
     function initMap(){
-      state.map = L.map('map', { center: [37, 137], zoom: 5 });
+      // 世界全体を見渡せる初期表示
+      state.map = L.map('map', { center: [20, 0], zoom: 2, worldCopyJump: true });
       const basePositron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '地図データ: &copy; OpenStreetMap貢献者 / タイル: &copy; CARTO',
         maxZoom: 19, subdomains: 'abcd'
@@ -269,14 +298,141 @@
       state.cluster = L.markerClusterGroup({ disableClusteringAtZoom: 9 });
       state.map.addLayer(state.cluster);
       state.custom.layer = L.layerGroup().addTo(state.map);
-      state.focusLayer = L.layerGroup().addTo(state.map);
       L.control.layers({ 'CARTO ライト': basePositron, '地理院 標準': baseGSI, '地理院 淡色': baseGsiPale }, null, { collapsed: true }).addTo(state.map);
       L.control.scale({ imperial: false }).addTo(state.map);
+
+      // 追加: 凡例
+      addLegendControl();
+
+      // 追加: ヒートレイヤー作成（まだ地図に追加しない）
+      state.heat.layer = L.heatLayer([], {
+        radius: 22,
+        blur: 16,
+        maxZoom: 11,
+        minOpacity: 0.3,
+        gradient: { 0.2: '#2b7bff', 0.5: '#ff9f1a', 0.9: '#7a5cff' }
+      });
+    }
+
+    // 追加: 凡例コントロール
+    function addLegendControl(){
+      const Legend = L.Control.extend({
+        options: { position: 'bottomright' },
+        onAdd: function(map){
+          const div = L.DomUtil.create('div', 'leaflet-control');
+          div.style.background = 'var(--legend-bg, #fff)';
+          div.style.padding = '8px 10px';
+          div.style.border = '1px solid #ccc';
+          div.style.borderRadius = '8px';
+          div.style.boxShadow = '0 1px 2px rgba(0,0,0,.08)';
+          div.style.fontSize = '12px';
+          div.innerHTML = `
+            <div style="font-weight:600; margin-bottom:4px;">凡例</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${colors.shallow};border:1px solid #999;"></span>浅発
+              <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${colors.intermediate};border:1px solid #999;"></span>中深発
+              <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${colors.deep};border:1px solid #999;"></span>深発
+            </div>
+            <div class="small" style="margin-top:4px; opacity:.7;">円サイズはMに比例</div>
+          `;
+          return div;
+        }
+      });
+      state.map.addControl(new Legend());
+    }
+
+    function depthCategoryOf(depthKm){
+      if (!Number.isFinite(depthKm)) return 'shallow';
+      if (depthKm < 70) return 'shallow';
+      if (depthKm < 300) return 'intermediate';
+      return 'deep';
+    }
+
+    function normalizeLocal(rows){
+      return (rows||[]).map((r,i) => {
+        const id = r.id ?? `${r.time||''}_${r.lat}_${r.lon}_${i}`;
+        const depth = Number(r.depth);
+        const cat = r.depthCategory || depthCategoryOf(depth);
+        return { id, lat: Number(r.lat), lon: Number(r.lon), mag: Number(r.mag)||0, depth, place: r.place||'', time: r.time, depthCategory: cat };
+      }).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+    }
+
+    function normalizeUSGS(geojson){
+      const feats = (geojson && geojson.features) ? geojson.features : [];
+      return feats.map((f,i) => {
+        const c = (f.geometry && f.geometry.coordinates) || [null,null,null];
+        const lon = Number(c[0]);
+        const lat = Number(c[1]);
+        const depth = Number(c[2]);
+        const mag = Number(f.properties && f.properties.mag);
+        const place = f.properties && f.properties.place || '';
+        const time = f.properties && f.properties.time ? new Date(f.properties.time).toISOString() : '';
+        const id = f.id || (f.properties && f.properties.code) || `${time}_${lat}_${lon}_${i}`;
+        return { id, lat, lon, mag: mag||0, depth: depth||0, place, time, depthCategory: depthCategoryOf(depth) };
+      }).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
     }
 
     async function loadData(){
-      const res = await fetch('earthquakes_events.json');
-      state.data = await res.json();
+      let rows = [];
+      let sourceText = '';
+      try {
+        if (state.dataSource === 'local'){
+          const res = await fetch('earthquakes_events.json');
+          const raw = await res.json();
+          rows = normalizeLocal(raw);
+          sourceText = 'ローカル（日本・過去3年）';
+        } else {
+          // USGS GeoJSON feed
+          const urlMap = {
+            usgs_day: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson',
+            usgs_week: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson',
+            usgs_month: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson'
+          };
+          const url = urlMap[state.dataSource] || urlMap.usgs_month;
+          const res = await fetch(url);
+          const gj = await res.json();
+          rows = normalizeUSGS(gj);
+          sourceText = state.dataSource==='usgs_day'?'USGS（過去24時間・世界）': state.dataSource==='usgs_week'?'USGS（過去7日・世界）':'USGS（過去30日・世界）';
+        }
+      } catch (e){
+        console.error('データ取得エラー', e);
+      }
+
+      state.data = rows;
+
+      // 追加: データから日付レンジ初期化
+      const times = state.data.map(r => new Date(r.time).getTime()).filter(Number.isFinite);
+      if (times.length) {
+        const minT = Math.min(...times);
+        const maxT = Math.max(...times);
+        const inFrom = document.getElementById('dateFrom');
+        const inTo = document.getElementById('dateTo');
+
+        const toLocalYMD = (ms) => {
+          const d = new Date(ms);
+          const tz = d.getTimezoneOffset() * 60000;
+          const local = new Date(ms - tz);
+          return local.toISOString().slice(0,10);
+        };
+        inFrom.min = toLocalYMD(minT);
+        inFrom.max = toLocalYMD(maxT);
+        inTo.min = toLocalYMD(minT);
+        inTo.max = toLocalYMD(maxT);
+
+        // 既定は全期間
+        inFrom.value = toLocalYMD(minT);
+        inTo.value = toLocalYMD(maxT);
+        state.timeFrom = new Date(inFrom.value).getTime();
+        // 終日の末端 23:59:59.999
+        state.timeTo = new Date(new Date(inTo.value).setHours(23,59,59,999)).getTime();
+
+        inFrom.disabled = false;
+        inTo.disabled = false;
+      }
+
+      const info = document.getElementById('sourceInfo');
+      if (info) info.textContent = `データ: ${sourceText || '不明'}`;
+
       updateMarkers();
     }
 
@@ -287,13 +443,44 @@
       const fSh = document.getElementById('fShallow');
       const fIm = document.getElementById('fInter');
       const fDp = document.getElementById('fDeep');
+  const fHeat = document.getElementById('fHeat');
+  const selSource = document.getElementById('dataSource');
 
       q.addEventListener('input', () => { state.query = q.value.trim(); updateMarkers(); });
       mag.addEventListener('input', () => { state.magMin = parseFloat(mag.value); magVal.textContent = `${state.magMin.toFixed(1)}+`; updateMarkers(); });
       fSh.addEventListener('change', () => { state.allow.shallow = fSh.checked; updateMarkers(); });
       fIm.addEventListener('change', () => { state.allow.intermediate = fIm.checked; updateMarkers(); });
       fDp.addEventListener('change', () => { state.allow.deep = fDp.checked; updateMarkers(); });
+  // 追加: ヒートマップ切替
+  fHeat.addEventListener('change', () => { state.heat.enabled = fHeat.checked; updateMarkers(); });
 
+      // データソース変更
+      if (selSource){
+        selSource.value = state.dataSource;
+        selSource.addEventListener('change', () => {
+          state.dataSource = selSource.value;
+          loadData();
+        });
+      }
+
+  // 追加: 日付レンジ
+      const inFrom = document.getElementById('dateFrom');
+      const inTo = document.getElementById('dateTo');
+
+      const updateDateRange = () => {
+        if (inFrom.value) state.timeFrom = new Date(inFrom.value).getTime(); else state.timeFrom = null;
+        if (inTo.value) {
+          const end = new Date(inTo.value);
+          state.timeTo = new Date(end.setHours(23,59,59,999)).getTime();
+        } else {
+          state.timeTo = null;
+        }
+        updateMarkers();
+      };
+      inFrom.addEventListener('change', updateDateRange);
+      inTo.addEventListener('change', updateDateRange);
+
+      // ヒットにズーム/現在地ボタンは削除
       // ---- Custom marker UI ----
       const btnCreate = document.getElementById('mkCreate');
       const btnSave = document.getElementById('mkSave');
@@ -414,45 +601,10 @@
         setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 200);
       });
 
-      // ---- Chatbot modal wiring ----
-      const chatFab = document.getElementById('chatFab');
-      const chatModal = document.getElementById('chatModal');
-      const chatBackdrop = document.getElementById('chatBackdrop');
-      const chatClose = document.getElementById('chatClose');
-      function openChat(){
-        chatModal.classList.add('open');
-        chatModal.setAttribute('aria-hidden','false');
-        // ask iframe chatbot to greet on open
-        try {
-          const frame = document.getElementById('chatFrame');
-          frame.contentWindow.postMessage({ type: 'chatbot-open' }, location.origin);
-        } catch(e) {}
-      }
-      function closeChat(){ chatModal.classList.remove('open'); chatModal.setAttribute('aria-hidden','true'); }
-      chatFab.addEventListener('click', openChat);
-      chatBackdrop.addEventListener('click', closeChat);
-      chatClose.addEventListener('click', closeChat);
-      window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeChat(); });
-      // Receive focus request from chatbot iframe (same-origin)
-      window.addEventListener('message', (e) => {
-        if (e.origin !== location.origin) return;
-        const d = e.data || {};
-        if (d.type === 'chatbot-event' && d.event) {
-          focusEventOnMap(d.event);
-        }
-      });
-      function focusEventOnMap(ev){
-        if (!ev || !Number.isFinite(ev.lat) || !Number.isFinite(ev.lon)) return;
-        state.focusLayer.clearLayers();
-        const mk = L.circleMarker([ev.lat, ev.lon], { radius: 12, color: '#00c853', weight: 3, fillColor: '#69f0ae', fillOpacity: 0.6, className: 'pulse-marker' })
-          .addTo(state.focusLayer)
-          .bindPopup(`<b>${ev.place||'(no place)'}</b><br>M ${Number(ev.mag||0).toFixed(1)} / ${ev.time||''}`)
-          .openPopup();
-        state.map.setView([ev.lat, ev.lon], Math.max(6, state.map.getZoom()));
-        // auto clear after some time
-        setTimeout(() => { try { state.focusLayer.clearLayers(); } catch(e) {} }, 8000);
-      }
+      // （チャットボット機能は削除済み）
     }
+
+    // ヒットにズーム機能は削除
 
     // boot
     initMap();

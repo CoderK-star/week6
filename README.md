@@ -16,7 +16,9 @@ USGS FDSN Event API から日本周辺 (緯度 24–46, 経度 122–154) のマ
 3. "Build and deployment" で Source を `Deploy from a branch` に設定。
 4. Branch を `main` / root (`/`) に設定し Save。
 5. 数十秒〜数分後に公開 URL が表示されます (例: `https://<ユーザー名>.github.io/<リポジトリ名>/`).
-6. 公開後、`index.html` がトップページとして表示され、地図 iframe が読み込まれます。
+6. 公開後、`index.html` がトップページとして表示され、地図が読み込まれます。
+
+<!-- 音声合成やチャットボット機能は削除済みのため該当記述を省略 -->
 
 ### 代替: `docs/` フォルダ方式
 `index.html` を `docs/index.html` に置き、Pages の Branch: `main` / folder: `/docs` にする方法でも可。
@@ -33,21 +35,7 @@ jupyter nbconvert --to html earthquake.ipynb
 ```
 生成された `earthquake.html` を追加で Pages に含めれば静的レポート閲覧が可能です。
 
-## ローカルで VOICEVOX プロキシを使って起動する
-ブラウザから VOICEVOX を直接呼ぶと CORS 制約で失敗する場合があるため、同一オリジンの簡易プロキシを用意しています。
 
-1. VOICEVOX エンジンを起動 (例: http://localhost:50021)
-2. プロキシを起動
-	```powershell
-	cd "c:\Users\kyuha\OneDrive - reitaku.jp\デスクトップ\Programming class\week6\proxy"
-	npm install
-	npm start
-	```
-	- プロキシは http://localhost:5173 で起動し、`/voicevox/*` を VOICEVOX へ中継、CORS ヘッダを付与します。
-	- プロジェクト直下の静的ファイルも配信されます。
-3. ブラウザで http://localhost:5173/interactive_map.html を開く
-	- 右下ボタンからチャットを開くと、`/voicevox` 経由で VOICEVOX が利用されます。
-	- うまくいかない場合は `chatbot.html` の URL に `&vv_debug=1` を付けてデバッグメッセージを確認してください。
 
 ## ライセンス / 注意
 - USGS データはオープンですが利用時は出典を明記してください。

@@ -53,19 +53,6 @@
     .icon { width: 18px; height: 18px; display: block; }
     /* panel tools (no box chrome) */
     .panel-tools { display: flex; justify-content: flex-end; padding: 0; margin: 0 0 8px 0; background: transparent; border: 0; box-shadow: none; }
-    /* chatbot button and modal */
-  .chat-fab { position: fixed; right: 16px; bottom: 16px; width: 56px; height: 56px; border-radius: 50%; border: 1px solid #999; background: #fff; box-shadow: 0 6px 16px rgba(0,0,0,.18); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 1000; overflow: hidden; }
-    .chat-fab:hover { transform: translateY(-1px); }
-  .chat-fab .icon { width: 28px; height: 28px; display:block; }
-  .chat-fab img { width: 120%; height: 120%; border-radius: 50%; object-fit: cover; object-position: 50% 30%; display:block; }
-    .chat-modal { position: fixed; inset: 0; display: none; z-index: 1200; }
-    .chat-modal.open { display: block; }
-    .chat-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.35); }
-    .chat-panel { position: absolute; right: 16px; bottom: 88px; width: min(560px, 92vw); height: min(70vh, 640px); background: #fff; border: 1px solid #ccc; border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,.35); overflow: hidden; display: flex; }
-    .chat-close { position: absolute; top: 6px; right: 8px; z-index: 1; width: 28px; height: 28px; border-radius: 999px; border: 1px solid #999; background: #fff; cursor: pointer; }
-    .chat-panel iframe { width: 100%; height: 100%; border: 0; }
-    /* focus pulse marker (fallback without CSS animation) */
-    .pulse-marker { box-shadow: 0 0 0 4px rgba(0,200,83,.25); }
   </style>
 </head>
 <body>
@@ -144,19 +131,7 @@
     <section class="map"><div id="map"></div></section>
   </div>
 
-  <!-- Floating Chatbot Button -->
-  <button id="chatFab" class="chat-fab" title="チャットボットを開く" aria-label="チャットボットを開く">
-    <img src="zunda.png" alt="ずんだもん" />
-  </button>
-
-  <!-- Chatbot Modal (iframe) -->
-  <div id="chatModal" class="chat-modal" aria-hidden="true">
-    <div id="chatBackdrop" class="chat-backdrop" aria-hidden="true"></div>
-    <div class="chat-panel" role="dialog" aria-modal="true" aria-label="ずんだもん地震チャットボット">
-      <button id="chatClose" class="chat-close" aria-label="閉じる">×</button>
-      <iframe id="chatFrame" src="chatbot.html?minimal=1&vv=1&vv_url=/voicevox" title="ずんだもん地震チャットボット"></iframe>
-    </div>
-  </div>
+  
 
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/leaflet.markercluster.js"></script>
@@ -268,8 +243,7 @@
       basePositron.addTo(state.map);
       state.cluster = L.markerClusterGroup({ disableClusteringAtZoom: 9 });
       state.map.addLayer(state.cluster);
-      state.custom.layer = L.layerGroup().addTo(state.map);
-      state.focusLayer = L.layerGroup().addTo(state.map);
+  state.custom.layer = L.layerGroup().addTo(state.map);
       L.control.layers({ 'CARTO ライト': basePositron, '地理院 標準': baseGSI, '地理院 淡色': baseGsiPale }, null, { collapsed: true }).addTo(state.map);
       L.control.scale({ imperial: false }).addTo(state.map);
     }
@@ -414,44 +388,7 @@
         setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 200);
       });
 
-      // ---- Chatbot modal wiring ----
-      const chatFab = document.getElementById('chatFab');
-      const chatModal = document.getElementById('chatModal');
-      const chatBackdrop = document.getElementById('chatBackdrop');
-      const chatClose = document.getElementById('chatClose');
-      function openChat(){
-        chatModal.classList.add('open');
-        chatModal.setAttribute('aria-hidden','false');
-        // ask iframe chatbot to greet on open
-        try {
-          const frame = document.getElementById('chatFrame');
-          frame.contentWindow.postMessage({ type: 'chatbot-open' }, location.origin);
-        } catch(e) {}
-      }
-      function closeChat(){ chatModal.classList.remove('open'); chatModal.setAttribute('aria-hidden','true'); }
-      chatFab.addEventListener('click', openChat);
-      chatBackdrop.addEventListener('click', closeChat);
-      chatClose.addEventListener('click', closeChat);
-      window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeChat(); });
-      // Receive focus request from chatbot iframe (same-origin)
-      window.addEventListener('message', (e) => {
-        if (e.origin !== location.origin) return;
-        const d = e.data || {};
-        if (d.type === 'chatbot-event' && d.event) {
-          focusEventOnMap(d.event);
-        }
-      });
-      function focusEventOnMap(ev){
-        if (!ev || !Number.isFinite(ev.lat) || !Number.isFinite(ev.lon)) return;
-        state.focusLayer.clearLayers();
-        const mk = L.circleMarker([ev.lat, ev.lon], { radius: 12, color: '#00c853', weight: 3, fillColor: '#69f0ae', fillOpacity: 0.6, className: 'pulse-marker' })
-          .addTo(state.focusLayer)
-          .bindPopup(`<b>${ev.place||'(no place)'}</b><br>M ${Number(ev.mag||0).toFixed(1)} / ${ev.time||''}`)
-          .openPopup();
-        state.map.setView([ev.lat, ev.lon], Math.max(6, state.map.getZoom()));
-        // auto clear after some time
-        setTimeout(() => { try { state.focusLayer.clearLayers(); } catch(e) {} }, 8000);
-      }
+      // （チャットボット機能は削除済み）
     }
 
     // boot
