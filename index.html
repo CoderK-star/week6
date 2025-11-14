@@ -10,52 +10,26 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.css"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.Default.css"/>
-  <style>
-    :root { color-scheme: light dark; }
-    html, body { height: 100%; margin: 0; }
-    body { font-family: 'Noto Sans JP', system-ui, -apple-system, Segoe UI, Roboto, 'Yu Gothic', sans-serif; }
-  .layout { --panel-w: 360px; display: grid; grid-template-columns: var(--panel-w) 1fr; grid-template-rows: auto 1fr; grid-template-areas: 'header header' 'panel map'; height: 100%; transition: grid-template-columns .35s ease; }
-    header { grid-area: header; padding: 10px 14px; border-bottom: 1px solid #ccc; }
-    .panel { grid-area: panel; padding: 12px; border-right: 1px solid #ccc; overflow: auto; background: rgba(0,0,0,0.02); }
-    .map { grid-area: map; }
-    #map { width: 100%; height: 100%; }
-    .box { background: #fff; border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
-    .box h3 { margin: 0 0 8px; font-size: 16px; }
-    .row { display: flex; gap: 8px; align-items: center; }
-    .row > * { flex: 1; }
-    .small { font-size: 12px; color: #666; }
-    .list { max-height: 42vh; overflow: auto; padding: 0; margin: 0; list-style: none; }
-    .item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
-    .item:hover { background: #f7f7f7; }
-    .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 12px; border: 1px solid #bbb; margin-left: 6px; }
-    .tag.shallow { background: #e7f0ff; border-color: #6aa4ff; }
-    .tag.intermediate { background: #fff1dc; border-color: #ffb957; }
-    .tag.deep { background: #efe6ff; border-color: #a88bff; }
-    .controls label { font-size: 13px; display: block; }
-    .muted { opacity: .55; }
-    /* custom marker ui */
-    .btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #999; background: #fff; cursor: pointer; font-size: 12px; }
-    .btn.primary { background: #2b7bff; border-color: #2b7bff; color: #fff; }
-    .btn.danger { background: #ff4d4f; border-color: #ff4d4f; color: #fff; }
-    .btn:disabled { opacity: .55; cursor: not-allowed; }
-    input[type="text"], textarea, select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #bbb; box-sizing: border-box; font-family: inherit; font-size: 13px; }
-    textarea { resize: vertical; min-height: 60px; }
-    .cm-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
-    #mkList .item { display: flex; flex-direction: column; gap: 2px; }
-    #mkList .item.active { background: #f0f6ff; }
-  /* collapse layout (animated via CSS variable) */
-  .layout.collapsed { --panel-w: 56px; }
-  .panel { transition: padding .35s ease; }
-  .layout.collapsed .panel { padding: 8px; }
-  .layout.collapsed .panel .box:not(.panel-tools) { display: none; }
-    /* icon button */
-    .icon-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid #999; background: #fff; cursor: pointer; }
-    .icon { width: 18px; height: 18px; display: block; }
-    /* panel tools (no box chrome) */
-    .panel-tools { display: flex; justify-content: flex-end; padding: 0; margin: 0 0 8px 0; background: transparent; border: 0; box-shadow: none; }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Opening Splash -->
+  <div id="siteSplash" class="splash" role="status" aria-live="polite" aria-label="読み込み中">
+    <div class="splash__decor" aria-hidden="true"></div>
+    <div class="splash__ring" aria-hidden="true"></div>
+    <div class="splash__logo">
+      <div class="splash__mark" aria-hidden="true">
+        <div class="splash__mark-inner">
+          <!-- Simple seismograph mark -->
+          <svg class="splash__logo-svg" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M6 38h6l4-8 5 12 6-20 6 26 5-12 4 8h16"/>
+          </svg>
+        </div>
+      </div>
+      <div class="splash__title"><span>地震マップ</span></div>
+      <div class="splash__hint">データを読み込んでいます…</div>
+    </div>
+  </div>
   <div class="layout">
     <header>
       <div class="row" style="justify-content:space-between; align-items:center; gap:8px;">
@@ -80,8 +54,32 @@
             <option value="usgs_month" selected>USGS: 過去30日 (世界)</option>
             <option value="usgs_week">USGS: 過去7日 (世界)</option>
             <option value="usgs_day">USGS: 過去24時間 (世界)</option>
+            <option value="usgs_hour">USGS: 過去1時間 (世界)</option>
             <option value="local">ローカル: 日本 (過去3年)</option>
           </select>
+        </div>
+        <div class="row" style="margin-top:8px; align-items:center;">
+          <label style="flex:0 0 92px;">リアルタイム</label>
+          <label class="row" style="gap:6px; flex: 0 0 auto;">
+            <input type="checkbox" id="rtEnable"> 自動更新
+          </label>
+          <select id="rtEvery" style="flex:0 0 110px;">
+            <option value="15000">15秒</option>
+            <option value="30000">30秒</option>
+            <option value="60000" selected>60秒</option>
+            <option value="120000">120秒</option>
+          </select>
+        </div>
+        <div class="small muted" id="rtStatus" style="margin-top:4px;"></div>
+        <div class="row" style="margin-top:8px; align-items:center;">
+          <label style="flex:0 0 92px;">アラート</label>
+          <label class="row" style="gap:6px; flex:0 0 auto;">
+            <input type="checkbox" id="alertEnable"> 通知オン
+          </label>
+          <label class="row" style="gap:6px; flex:0 0 auto;">
+            閾値M
+            <input id="alertMinMag" type="number" step="0.1" min="0" max="10" value="5.0" style="width:72px;">
+          </label>
         </div>
       </div>
       <div class="box">
@@ -145,6 +143,12 @@
         <div class="small muted" style="margin-top:8px;">マーカー一覧</div>
         <ul id="mkList" class="list" style="max-height:180px;"></ul>
       </div>
+      <!-- Country images box -->
+      <div class="box" id="countryBox">
+        <h3>国のイメージ</h3>
+        <div id="countryInfo" class="small muted">地図をクリックすると、その国の画像が表示されます。</div>
+        <div id="countryGallery" class="gallery"></div>
+      </div>
       <div class="box">
         <h3>ヒット一覧 <span id="hitCount" class="small muted"></span></h3>
         <ul id="list" class="list"></ul>
@@ -154,6 +158,9 @@
     <section class="map"><div id="map"></div></section>
   </div>
 
+  <!-- Alert stack overlay -->
+  <div id="alertStack" class="alerts" aria-live="polite" aria-atomic="false"></div>
+
   
 
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
@@ -161,6 +168,25 @@
   <!-- Leaflet.heat plugin -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script>
+    // Opening splash control
+    (function(){
+      const splash = document.getElementById('siteSplash');
+      function hideSplash(){
+        if (!splash || splash.classList.contains('is-hidden')) return;
+        splash.classList.add('is-hidden');
+        // remove from DOM after transition ends to free events
+        setTimeout(() => splash && splash.remove && splash.remove(), 800);
+      }
+      // If data load finishes earlier, we will also hide it in loadData() end, but ensure fallback here
+      window.addEventListener('load', () => {
+        // Allow a tiny delay so first map paint is ready behind the fade
+        setTimeout(hideSplash, 250);
+      });
+      // Safety fallback after 6s (in case load event is blocked)
+      setTimeout(hideSplash, 6000);
+      // expose for optional manual control
+      window.__hideSplash = hideSplash;
+    })();
     const state = {
       data: [],
       markers: [],
@@ -182,6 +208,12 @@
       },
       // 追加: ヒートマップ用状態
       heat: { layer: null, enabled: false }
+      ,
+      // リアルタイム更新
+      realtime: { enabled: false, timer: null, intervalMs: 60000, lastUpdated: null },
+      // アラート
+      alert: { enabled: false, minMag: 5.0, seen: new Set(), initialized: false },
+      audioCtx: null
     };
 
     const colors = { shallow: '#2b7bff', intermediate: '#ff9f1a', deep: '#7a5cff' };
@@ -341,6 +373,169 @@
       state.map.addControl(new Legend());
     }
 
+    // Country detection and image search helpers
+    async function fetchCountryByLatLng(lat, lon){
+      try{
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=3&accept-language=en`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const js = await res.json();
+        const country = (js && js.address && (js.address.country)) || js.name || js.display_name || '';
+        const code = (js && js.address && js.address.country_code) ? String(js.address.country_code).toUpperCase() : '';
+        return { country, code };
+      } catch(e){ console.error('reverse geocode error', e); return { country: '', code: '' }; }
+    }
+
+    async function fetchCountryImages(countryName, limit=9){
+      try {
+        // 1) find the country page on English Wikipedia
+        const s1 = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(countryName)}&srlimit=1&format=json&origin=*`);
+        const j1 = await s1.json();
+        const pageId = j1 && j1.query && j1.query.search && j1.query.search[0] && j1.query.search[0].pageid;
+        if (!pageId) return [];
+        // 2) list images used on that page
+        const s2 = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=images&pageids=${pageId}&imlimit=50&format=json&origin=*`);
+        const j2 = await s2.json();
+        const imgs = (j2 && j2.query && j2.query.pages && j2.query.pages[pageId] && j2.query.pages[pageId].images) || [];
+        const fileTitles = imgs.map(it => it.title).filter(t => /(\.jpg|\.jpeg|\.png)$/i.test(t)).slice(0, 24);
+        if (!fileTitles.length) return [];
+        // 3) fetch URLs for these files
+        const titlesParam = encodeURIComponent(fileTitles.join('|'));
+        const s3 = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${titlesParam}&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*`);
+        const j3 = await s3.json();
+        const pages = (j3 && j3.query && j3.query.pages) || {};
+        const urls = Object.values(pages)
+          .map(p => p.imageinfo && p.imageinfo[0] && (p.imageinfo[0].thumburl || p.imageinfo[0].url))
+          .filter(Boolean)
+          .slice(0, limit);
+        return urls;
+      } catch(e){ console.error('wiki image fetch error', e); return []; }
+    }
+
+    function renderCountryGallery(countryName, images){
+      const info = document.getElementById('countryInfo');
+      const gal = document.getElementById('countryGallery');
+      if (!info || !gal) return;
+      if (!countryName){
+        info.textContent = '国が特定できませんでした。';
+        gal.innerHTML = '';
+        return;
+      }
+      info.textContent = `${countryName} のイメージ`;
+      gal.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      for (const url of images){
+        const wrap = document.createElement('div');
+        wrap.className = 'thumb';
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.src = url;
+        img.alt = countryName;
+        wrap.appendChild(img);
+        frag.appendChild(wrap);
+      }
+      gal.appendChild(frag);
+      if (!images.length){
+        gal.innerHTML = '<div class="small muted">画像が見つかりませんでした。</div>';
+      }
+    }
+
+    async function fetchCountryFlow(lat, lon){
+      const info = document.getElementById('countryInfo');
+      const gal = document.getElementById('countryGallery');
+      if (info) info.textContent = '国を特定しています…';
+      if (gal) gal.innerHTML = '';
+      const { country } = await fetchCountryByLatLng(lat, lon);
+      if (!country){ renderCountryGallery(null, []); return; }
+      if (info) info.textContent = `${country} のイメージを取得中…`;
+      const images = await fetchCountryImages(country, 9);
+      renderCountryGallery(country, images);
+    }
+
+    // ---- Earthquake alerting ----
+    function ensureAudio(){
+      if (!state.audioCtx){
+        try{ state.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch(e){ state.audioCtx = null; }
+      }
+      return state.audioCtx;
+    }
+
+    function playAlertSound(mag){
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      const beeps = mag >= 6 ? 3 : (mag >= 5 ? 2 : 1);
+      const startAt = ctx.currentTime;
+      for (let i=0;i<beeps;i++){
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = Math.min(1200, 400 + (mag*120));
+        g.gain.setValueAtTime(0, startAt + i*0.35);
+        g.gain.linearRampToValueAtTime(0.25, startAt + i*0.35 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, startAt + i*0.35 + 0.28);
+        o.connect(g).connect(ctx.destination);
+        o.start(startAt + i*0.35);
+        o.stop(startAt + i*0.35 + 0.3);
+      }
+    }
+
+    function triggerAlert(e){
+      if (!state.alert.enabled) return;
+      const stack = document.getElementById('alertStack');
+      if (!stack) return;
+      const div = document.createElement('div');
+      const strong = e.mag>=6 ? 'strong' : e.mag>=5 ? 'medium' : 'light';
+      div.className = `alert-card ${strong} alert-enter`;
+      div.innerHTML = `
+        <div class="alert-badge">M ${e.mag.toFixed(1)}</div>
+        <div class="alert-body">
+          <div class="alert-title">${e.place || '(場所情報なし)'}</div>
+          <div class="alert-meta small">深さ ${Math.round(e.depth)} km / ${formatJST(e.time)}</div>
+        </div>
+        <button class="alert-action" title="この地点へ">移動</button>
+      `;
+      // actions
+      const action = div.querySelector('.alert-action');
+      if (action){
+        action.addEventListener('click', () => {
+          try { state.map.setView([e.lat, e.lon], Math.max(6, state.map.getZoom())); } catch(_){}
+        });
+      }
+      // remove after 12s
+      const ttl = setTimeout(() => div.remove(), 12000);
+      div.addEventListener('click', () => { clearTimeout(ttl); div.remove(); });
+      stack.prepend(div);
+      try { playAlertSound(e.mag); } catch(_){}
+    }
+
+    function handleAlerts(rows){
+      if (!state.alert.enabled) return;
+      if (!state.alert.initialized) return;
+      const now = Date.now();
+      const recentMs = 10 * 60 * 1000; // last 10 minutes
+      const minMag = state.alert.minMag || 0;
+      const seen = state.alert.seen || new Set();
+      const newcomers = [];
+      for (const e of rows){
+        if (!seen.has(e.id)){
+          const t = new Date(e.time).getTime();
+          if ((!Number.isFinite(t) || now - t <= recentMs) && (e.mag||0) >= minMag){
+            newcomers.push(e);
+          }
+          seen.add(e.id);
+        }
+      }
+      // Trim seen to prevent growth
+      if (seen.size > 10000){
+        const keep = Array.from(seen).slice(-5000);
+        state.alert.seen = new Set(keep);
+      } else {
+        state.alert.seen = seen;
+      }
+      newcomers.sort((a,b)=> (new Date(a.time)) - (new Date(b.time)));
+      for (const e of newcomers){ triggerAlert(e); }
+    }
+
     function depthCategoryOf(depthKm){
       if (!Number.isFinite(depthKm)) return 'shallow';
       if (depthKm < 70) return 'shallow';
@@ -384,6 +579,7 @@
         } else {
           // USGS GeoJSON feed
           const urlMap = {
+            usgs_hour: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson',
             usgs_day: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson',
             usgs_week: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson',
             usgs_month: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson'
@@ -392,13 +588,21 @@
           const res = await fetch(url);
           const gj = await res.json();
           rows = normalizeUSGS(gj);
-          sourceText = state.dataSource==='usgs_day'?'USGS（過去24時間・世界）': state.dataSource==='usgs_week'?'USGS（過去7日・世界）':'USGS（過去30日・世界）';
+          sourceText = state.dataSource==='usgs_hour'?'USGS（過去1時間・世界）'
+                      : state.dataSource==='usgs_day'?'USGS（過去24時間・世界）'
+                      : state.dataSource==='usgs_week'?'USGS（過去7日・世界）'
+                      : 'USGS（過去30日・世界）';
         }
       } catch (e){
         console.error('データ取得エラー', e);
       }
 
       state.data = rows;
+      // 初回は既存データを既読として登録してスパム抑制
+      if (!state.alert.initialized){
+        try { state.alert.seen = new Set(rows.map(r => r.id)); } catch(_) { state.alert.seen = new Set(); }
+        state.alert.initialized = true;
+      }
 
       // 追加: データから日付レンジ初期化
       const times = state.data.map(r => new Date(r.time).getTime()).filter(Number.isFinite);
@@ -433,7 +637,11 @@
       const info = document.getElementById('sourceInfo');
       if (info) info.textContent = `データ: ${sourceText || '不明'}`;
 
-      updateMarkers();
+  updateMarkers();
+  // アラート判定（初回はスキップ済み）
+  handleAlerts(rows);
+      // Hide splash when initial data is ready
+      if (window.__hideSplash) window.__hideSplash();
     }
 
     function wireUI(){
@@ -445,6 +653,11 @@
       const fDp = document.getElementById('fDeep');
   const fHeat = document.getElementById('fHeat');
   const selSource = document.getElementById('dataSource');
+  const rtEnable = document.getElementById('rtEnable');
+  const rtEvery = document.getElementById('rtEvery');
+  const rtStatus = document.getElementById('rtStatus');
+  const alertEnable = document.getElementById('alertEnable');
+  const alertMinMag = document.getElementById('alertMinMag');
 
       q.addEventListener('input', () => { state.query = q.value.trim(); updateMarkers(); });
       mag.addEventListener('input', () => { state.magMin = parseFloat(mag.value); magVal.textContent = `${state.magMin.toFixed(1)}+`; updateMarkers(); });
@@ -459,7 +672,15 @@
         selSource.value = state.dataSource;
         selSource.addEventListener('change', () => {
           state.dataSource = selSource.value;
+          // データソース切替時は見たIDをリセットし初回スパム抑制
+          state.alert.initialized = false;
           loadData();
+          // ローカル選択時はリアルタイム無効化
+          if (state.dataSource === 'local' && state.realtime.enabled){
+            stopRealtime();
+            if (rtEnable) rtEnable.checked = false;
+            if (rtStatus) rtStatus.textContent = 'ローカルデータでは自動更新は無効です。';
+          }
         });
       }
 
@@ -479,6 +700,92 @@
       };
       inFrom.addEventListener('change', updateDateRange);
       inTo.addEventListener('change', updateDateRange);
+
+      // ---- Realtime wiring ----
+      function setRtStatus(){
+        if (!rtStatus) return;
+        if (!state.realtime.enabled){ rtStatus.textContent = ''; return; }
+        const t = state.realtime.lastUpdated ? new Date(state.realtime.lastUpdated) : null;
+        const hms = t ? t.toLocaleTimeString('ja-JP', { hour12:false }) : '—';
+        rtStatus.textContent = `リアルタイム更新: ON / 最終更新 ${hms}`;
+      }
+
+      async function refreshRealtime(){
+        // Skip if disabled or local
+        if (!state.realtime.enabled || state.dataSource === 'local') return;
+        try{
+          const urlMap = {
+            usgs_hour: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson',
+            usgs_day: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson',
+            usgs_week: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson',
+            usgs_month: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson'
+          };
+          const url = urlMap[state.dataSource] || urlMap.usgs_hour;
+          const res = await fetch(url, { cache: 'no-cache' });
+          const gj = await res.json();
+          const rows = normalizeUSGS(gj);
+          // Keep existing date range filter selections; just replace data and rerender
+          state.data = rows;
+          state.realtime.lastUpdated = Date.now();
+          updateMarkers();
+          // New alerts
+          handleAlerts(rows);
+          setRtStatus();
+        } catch(e){
+          console.error('リアルタイム取得エラー', e);
+          if (rtStatus) rtStatus.textContent = 'リアルタイム取得エラー。接続を確認。';
+        }
+      }
+
+      function startRealtime(){
+        stopRealtime();
+        state.realtime.enabled = true;
+        setRtStatus();
+        // Immediate refresh, then interval
+        refreshRealtime();
+        state.realtime.timer = setInterval(refreshRealtime, state.realtime.intervalMs);
+      }
+      function stopRealtime(){
+        if (state.realtime.timer){ clearInterval(state.realtime.timer); state.realtime.timer = null; }
+        state.realtime.enabled = false;
+        setRtStatus();
+      }
+      if (rtEvery){
+        rtEvery.value = String(state.realtime.intervalMs);
+        rtEvery.addEventListener('change', () => {
+          state.realtime.intervalMs = parseInt(rtEvery.value||'60000', 10) || 60000;
+          if (state.realtime.enabled){ startRealtime(); }
+        });
+      }
+      if (rtEnable){
+        rtEnable.checked = state.realtime.enabled;
+        rtEnable.addEventListener('change', () => {
+          if (rtEnable.checked){
+            if (state.dataSource === 'local'){
+              rtEnable.checked = false;
+              if (rtStatus) rtStatus.textContent = 'ローカルデータでは自動更新は無効です。';
+              return;
+            }
+            startRealtime();
+          } else {
+            stopRealtime();
+          }
+        });
+      }
+
+      // ---- Alert wiring ----
+      if (alertEnable){
+        alertEnable.checked = state.alert.enabled;
+        alertEnable.addEventListener('change', () => { state.alert.enabled = alertEnable.checked; });
+      }
+      if (alertMinMag){
+        alertMinMag.value = String(state.alert.minMag.toFixed(1));
+        alertMinMag.addEventListener('change', () => {
+          const v = parseFloat(alertMinMag.value);
+          if (!Number.isFinite(v)) return;
+          state.alert.minMag = Math.max(0, Math.min(10, v));
+        });
+      }
 
       // ヒットにズーム/現在地ボタンは削除
       // ---- Custom marker UI ----
@@ -565,19 +872,26 @@
         try { const raw = localStorage.getItem('customMarkers'); if (raw) state.custom.items = JSON.parse(raw)||[]; } catch(e) { state.custom.items=[]; }
       }
 
-      // map click create
+      // map click: create custom marker if in creation mode; otherwise fetch country images
       state.map.on('click', e => {
-        if (!state.custom.creation) return;
-        const id = Date.now();
-        const item = { id, lat:e.latlng.lat, lon:e.latlng.lng, title:'新しいポイント', note:'', color:'#2b7bff' };
-        state.custom.items.push(item);
-        state.custom.creation = false;
-        btnCreate.textContent='作成モード';
-        btnCreate.classList.remove('primary');
-        state.custom.selectedId = id;
-        saveCustom();
-        bindForm(item);
-        redrawCustom();
+        if (state.custom.creation){
+          const id = Date.now();
+          const item = { id, lat:e.latlng.lat, lon:e.latlng.lng, title:'新しいポイント', note:'', color:'#2b7bff' };
+          state.custom.items.push(item);
+          state.custom.creation = false;
+          btnCreate.textContent='作成モード';
+          btnCreate.classList.remove('primary');
+          state.custom.selectedId = id;
+          saveCustom();
+          bindForm(item);
+          redrawCustom();
+          return;
+        }
+        // Ignore clicks on interactive layers (markers, clusters)
+        const tgt = e.originalEvent && e.originalEvent.target;
+        if (tgt && (tgt.closest && (tgt.closest('.leaflet-interactive') || tgt.closest('.marker-cluster')))) return;
+        // Fetch country images for clicked location
+        fetchCountryFlow(e.latlng.lat, e.latlng.lng);
       });
 
       loadCustom();
